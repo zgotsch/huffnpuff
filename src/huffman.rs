@@ -22,6 +22,7 @@ pub(crate) fn encode(bytes: &[u8]) -> Result<Vec<u8>, Error> {
     let message = tree.encode(bytes);
 
     bits.extend_from_bitslice(&message);
+    bits.set_uninitialized(false);
     Ok(bits.into_vec())
 }
 
@@ -244,6 +245,80 @@ impl Node {
         }
 
         let remaining = traverse(remaining, &mut tree);
+        if matches!(tree, Node::Leaf { .. }) {
+            // Error, the tree should have at least one inner node
+            return None;
+        }
         return Some((tree, remaining));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bitvec::bits;
+
+    use super::*;
+
+    #[test]
+    fn test_bug_padding_decoded_as_data() {
+        /*
+         * A handcrafted example where the padding bits are interpreted as data
+         *
+         * The tree is:
+         * o
+         * /\
+         * o c
+         * /\
+         * a b
+         *
+         * Corresponding to a codebook of:
+         * a: 00
+         * b: 01
+         * c: 1
+         *
+         * The encoding of the huffman tree is thus:
+         * 0 0 1 1 1
+         * Followed by byte values:
+         * a b c
+         *
+         * Thus the total encoded tree is 5 + 24 = 29 bits long.
+         *
+         * It's important that the total encoded message leaves empty bits at the end, so it should
+         * be 8n + 1 bits. Thus, a simple 4 bit message is chosen: 00 00, which corresponds to "aa".
+         *
+         * a: 0x61 0b0110_0001
+         * b: 0x62 0b0110_0010
+         * c: 0x63 0b0110_0011
+         *
+         * Thus the whole message is 33 bits long:
+         * 0b00111_01100001_01100010_01100011_00_00_1111111
+         */
+        let tree = bits![u8, Lsb0; 0, 0, 1, 1, 1];
+        let values = vec![0x61 as u8, 0x62, 0x63];
+        let message = bits![u8, Lsb0; 0, 0, 0, 0];
+        let padding = bits![u8, Lsb0; 1, 1, 1, 1, 1, 1, 1];
+
+        let mut bytes = BitVec::new();
+        bytes.extend_from_bitslice(&tree);
+        bytes.extend_from_bitslice(&values.view_bits::<Lsb0>());
+        bytes.extend_from_bitslice(&message);
+        assert_eq!(bytes.len(), 33);
+
+        bytes.extend_from_bitslice(&padding);
+        assert_eq!(bytes.len(), 40);
+
+        // let bytes = vec![
+        //     0b00111_011,
+        //     0b00001_011,
+        //     0b00010_011,
+        //     0b00011_00_0,
+        //     // padding
+        //     0b0_11111111,
+        // ];
+        dbg!(&bytes);
+
+        let value = vec![0x61, 0x61];
+        let decoded = decode(&bytes.into_vec()).unwrap();
+        assert_eq!(dbg!(decoded), value);
     }
 }
