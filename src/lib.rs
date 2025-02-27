@@ -2,14 +2,22 @@
 
 mod huffman;
 
+pub use huffman::Error as HuffmanError;
+
 #[derive(Debug)]
 pub enum Error {
     Bincode(bincode::Error),
+    Huffman(HuffmanError),
 }
 
 impl From<bincode::Error> for Error {
     fn from(error: bincode::Error) -> Self {
         Error::Bincode(error)
+    }
+}
+impl From<huffman::Error> for Error {
+    fn from(error: huffman::Error) -> Self {
+        Error::Huffman(error)
     }
 }
 
@@ -19,7 +27,7 @@ where
     T: serde::Serialize,
 {
     let bincoded_bytes = bincode::serialize(value)?;
-    Ok(huffman::encode(&bincoded_bytes))
+    Ok(huffman::encode(&bincoded_bytes)?)
 }
 
 /// Decode a buffer encoded by this library into a DeserializeOwned type
@@ -27,7 +35,7 @@ pub fn puff<'a, T>(bytes: &'a [u8]) -> Result<T, Error>
 where
     T: serde::de::DeserializeOwned,
 {
-    let bincoded_bytes = huffman::decode(bytes);
+    let bincoded_bytes = huffman::decode(bytes)?;
     Ok(bincode::deserialize(&bincoded_bytes)?)
 }
 
@@ -40,6 +48,12 @@ mod tests {
         let int: u32 = 42;
         let string: String = "this is a string".to_owned();
         let tuple: (bool, u8) = (true, 255);
+        let empty_vec: Vec<u8> = vec![];
+
+        {
+            let encoded = huff(&empty_vec).unwrap();
+            assert_eq!(puff::<Vec<u8>>(&encoded).unwrap(), empty_vec);
+        }
 
         {
             let encoded = huff(&int).unwrap();
@@ -52,6 +66,11 @@ mod tests {
         {
             let encoded = huff(&tuple).unwrap();
             assert_eq!(puff::<(bool, u8)>(&encoded).unwrap(), tuple);
+        }
+        {
+            let encoded = huff(&empty_vec).unwrap();
+            let decoded: Vec<u8> = puff(&encoded).unwrap();
+            assert_eq!(decoded, empty_vec);
         }
     }
 
@@ -91,6 +110,29 @@ mod tests {
 
         let decompressed: User = puff(&compressed).unwrap();
         assert_eq!(user, decompressed);
+    }
+
+    #[test]
+    fn test_empty() {
+        let empty: Vec<u8> = vec![];
+
+        let decompressed: Result<Vec<u8>, Error> = puff(&empty);
+        println!("{:?}", decompressed);
+        assert!(matches!(
+            decompressed,
+            Err(Error::Huffman(huffman::Error::NoData))
+        ));
+    }
+
+    #[test]
+    fn test_invalid() {
+        let message = "Hello, world!";
+        let decompressed: Result<Vec<u8>, Error> = puff(message.as_bytes());
+
+        assert!(matches!(
+            decompressed,
+            Err(Error::Huffman(huffman::Error::FailedToDecodeHuffmanTree))
+        ));
     }
 
     // #[test]

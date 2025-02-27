@@ -97,7 +97,6 @@ println!(
 - **API changes**: The current API does not expose the huffman tree, it is always encoded in the compressed data. This is not ideal for some use cases, where the tree could be shared between multiple compressed data. A future version could expose the tree for reuse.
 - **Optimizations**: The current implementation is not optimized for performance, and probably uses both more space and does more work than is necessary. Additionally, unaligned bit reads/writes are used, which may be slow on some platforms.
 - **Streaming API**: Add support for compressing/decompressing streams rather than only in-memory buffers.
-- **Error handling**: The current error handling is minimal, and operations may panic.
 
 ## License
 

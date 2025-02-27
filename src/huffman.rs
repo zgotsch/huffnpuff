@@ -4,20 +4,38 @@ use std::collections::{BTreeMap, HashMap};
 type BitSlice = bitvec::prelude::BitSlice<u8, Lsb0>;
 type BitVec = bitvec::prelude::BitVec<u8, Lsb0>;
 
-pub(crate) fn encode(bytes: &[u8]) -> Vec<u8> {
+#[derive(Debug)]
+pub enum Error {
+    /// No data was provided to the encoding or decoding function
+    NoData,
+    /// It was not possible to decode the huffman tree from the provided data. Maybe this data was not encoded by huffnpuff?
+    FailedToDecodeHuffmanTree,
+}
+
+pub(crate) fn encode(bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    if bytes.is_empty() {
+        return Err(Error::NoData);
+    }
+
     let tree = Node::tree_for_message(bytes);
     let mut bits = tree.serialize();
     let message = tree.encode(bytes);
 
     bits.extend_from_bitslice(&message);
-    return bits.into_vec();
+    Ok(bits.into_vec())
 }
 
-pub(crate) fn decode(bytes: &[u8]) -> Vec<u8> {
-    let bits = bytes.view_bits();
-    let (tree, bits) = Node::deserialize(bits);
+pub(crate) fn decode(bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    if bytes.is_empty() {
+        return Err(Error::NoData);
+    }
 
-    tree.decode(bits)
+    let bits = bytes.view_bits();
+    if let Some((tree, bits)) = Node::deserialize(bits) {
+        return Ok(tree.decode(bits));
+    } else {
+        return Err(Error::FailedToDecodeHuffmanTree);
+    }
 }
 
 #[derive(Debug)]
@@ -46,6 +64,8 @@ impl Node {
         Self::Leaf { count, value }
     }
 
+    /// Invariant: The tree returned by this constructor will always have at least one inner node.
+    /// Calling this function with an empty slice is an error, and will panic.
     fn tree_for_message(bytes: &[u8]) -> Self {
         let frequencies = bytes.iter().fold(HashMap::new(), |mut acc, &byte| {
             *acc.entry(byte).or_insert(0) += 1;
@@ -122,10 +142,7 @@ impl Node {
 
         let mut cursor = self;
         // no single node trees allowed
-        assert!(match cursor {
-            Node::Inner { .. } => true,
-            _ => false,
-        });
+        assert!(matches!(cursor, Node::Inner { .. }));
 
         // we're going to peel off one bit at a time, traversing the tree til we reach a leaf
         for bit in bits {
@@ -183,26 +200,32 @@ impl Node {
     }
 
     /// Decode a tree from the prefix of a bitslice
-    fn deserialize(bits: &BitSlice) -> (Self, &BitSlice) {
-        fn helper<'a>(leaf_count: &mut u32, bits: &'a BitSlice) -> (Node, &'a BitSlice) {
-            let (is_leaf, rest) = bits.split_first().unwrap();
+    fn deserialize(bits: &BitSlice) -> Option<(Self, &BitSlice)> {
+        fn helper<'a>(leaf_count: &mut u32, bits: &'a BitSlice) -> Option<(Node, &'a BitSlice)> {
+            let (is_leaf, rest) = bits.split_first()?;
             if *is_leaf {
+                *leaf_count += 1;
                 // No counts in the rehydrated tree, no values yet
-                return (Node::Leaf { count: 0, value: 0 }, rest);
+                return Some((Node::Leaf { count: 0, value: 0 }, rest));
             }
 
-            let (left, rest) = helper(leaf_count, rest);
-            let (right, rest) = helper(leaf_count, rest);
+            let (left, rest) = helper(leaf_count, rest)?;
+            let (right, rest) = helper(leaf_count, rest)?;
             let node = Node::Inner {
                 count: 0,
                 left: Box::new(left),
                 right: Box::new(right),
             };
-            return (node, rest);
+            Some((node, rest))
         }
 
         let mut leaf_count = 0;
-        let (mut tree, remaining) = helper(&mut leaf_count, bits);
+        let (mut tree, remaining) = helper(&mut leaf_count, bits)?;
+
+        if (leaf_count * 8) > remaining.len() as u32 {
+            // Error, there isn't enough data to fill out the leaf nodes
+            return None;
+        }
 
         // traverse the new tree, deserializing byte values from the stream
         fn traverse<'a>(bits: &'a BitSlice, node: &mut Node) -> &'a BitSlice {
@@ -221,6 +244,6 @@ impl Node {
         }
 
         let remaining = traverse(remaining, &mut tree);
-        return (tree, remaining);
+        return Some((tree, remaining));
     }
 }
