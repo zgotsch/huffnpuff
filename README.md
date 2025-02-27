@@ -79,7 +79,7 @@ println!(
    compressed.len(),
    compressed.len() as f64 / short_message.len() as f64,
 );
-// Short message uncompressed: 13, compressed: 24, ratio: 1.85
+// Short message uncompressed: 13, compressed: 27, ratio: 2.08
 
 let compressed = huff(&long_message).unwrap();
 // Long messages should compress well, since the overhead of the huffman tree will be amortized over the message size
@@ -89,12 +89,12 @@ println!(
    compressed.len(),
    compressed.len() as f64 / long_message.len() as f64,
 );
-// Long message uncompressed: 445, compressed: 278, ratio: 0.62
+// Long message uncompressed: 445, compressed: 285, ratio: 0.64
 ```
 
 ## Further Work
 
-- **API changes**: The current API does not expose the huffman tree, it is always encoded in the compressed data. This is not ideal for some use cases, where the tree could be shared between multiple compressed data. A future version could expose the tree for reuse.
+- **API changes**: The current API does not expose the huffman tree, it is always encoded in the compressed data. This is not ideal for some use cases, where the tree could be shared between multiple compressed data. A future version could expose the tree for reuse. Additionally, the current AI does allow for decoding of prefixes of the compressed data, which are known to the library to be incomplete, but this is not exposed in the return value.
 - **Optimizations**: The current implementation is not optimized for performance, and probably uses both more space and does more work than is necessary. Additionally, unaligned bit reads/writes are used, which may be slow on some platforms.
 - **Streaming API**: Add support for compressing/decompressing streams rather than only in-memory buffers.
 

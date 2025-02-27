@@ -157,5 +157,7 @@ mod tests {
     //         compressed.len(),
     //         compressed.len() as f64 / long_message.len() as f64,
     //     );
+
+    //     assert!(false);
     // }
 }
