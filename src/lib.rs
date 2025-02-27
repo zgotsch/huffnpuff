@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod huffman;
 
 #[derive(Debug)]
@@ -67,4 +69,28 @@ mod tests {
 
         assert!(encoded.len() < plaintext.as_bytes().len());
     }
+
+    // #[test]
+    // fn test_statistics() {
+    //     let short_message = "Hello, world!";
+    //     let long_message = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+
+    //     let compressed = huff(&short_message).unwrap();
+    //     // Short messages may not compress well, since the overhead of the huffman tree will be significant compared to the message size
+    //     println!(
+    //         "Short message uncompressed: {}, compressed: {}, ratio: {:.2}",
+    //         short_message.len(),
+    //         compressed.len(),
+    //         compressed.len() as f64 / short_message.len() as f64,
+    //     );
+
+    //     let compressed = huff(&long_message).unwrap();
+    //     // Long messages should compress well, since the overhead of the huffman tree will be amortized over the message size
+    //     println!(
+    //         "Long message uncompressed: {}, compressed: {}, ratio: {:.2}",
+    //         long_message.len(),
+    //         compressed.len(),
+    //         compressed.len() as f64 / long_message.len() as f64,
+    //     );
+    // }
 }
