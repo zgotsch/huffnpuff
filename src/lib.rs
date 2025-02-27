@@ -70,6 +70,29 @@ mod tests {
         assert!(encoded.len() < plaintext.as_bytes().len());
     }
 
+    #[test]
+    fn roundtrip_custom() {
+        use serde::{Deserialize, Serialize};
+
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        struct User {
+            id: u64,
+            name: String,
+            is_active: bool,
+        }
+
+        let user = User {
+            id: 42,
+            name: "Alice".to_string(),
+            is_active: true,
+        };
+
+        let compressed = huff(&user).unwrap();
+
+        let decompressed: User = puff(&compressed).unwrap();
+        assert_eq!(user, decompressed);
+    }
+
     // #[test]
     // fn test_statistics() {
     //     let short_message = "Hello, world!";
